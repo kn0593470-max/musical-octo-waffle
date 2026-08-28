@@ -6,7 +6,6 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
-from telethon.tl.types import ReplyKeyboardMarkup, KeyboardButton
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
 from telethon.tl.functions.account import UpdateProfileRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
@@ -18,7 +17,7 @@ API_HASH = "cd3c7822f740b7b7af660de3cb1c9f9d"
 BOT_TOKEN = "8704592597:AAEK_FoX078pKAYtFqSoPGLINMEf1Y2QakQ"
 ADMIN_ID = 7907990385
 
-# --- MỞ CỔNG HTTP GIẢ LẬP ĐỂ QUA MẶT RENDER (WEB SERVICE FIX) ---
+# --- MỞ CỔNG HTTP GIẢ LẬP CHO RENDER ---
 class DummyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -30,18 +29,15 @@ def run_web_server():
     server = HTTPServer(('0.0.0.0', port), DummyHandler)
     server.serve_forever()
 
-# Chạy web server ở luồng phụ để Render không bị timeout port
 threading.Thread(target=run_web_server, daemon=True).start()
 
-# Lưu trữ trạng thái hệ thống
+# TRẠNG THÁI HỆ THỐNG
 active_user_clients = {}
 active_tasks = {}
 autoclear_status = {}
 group_autodelete_status = {}
-admin_list = {ADMIN_ID}
-is_admin_locked = False
+user_states = {} 
 
-# --- KHO NGÔN WAR ĐẦY ĐỦ ---
 WAR_WORDS = [
     (
         "bố con mẹ m còn địt con cụ m thk óc lợn ba vạn ngu lồn ơi cái thứ mồ côi "
@@ -89,8 +85,8 @@ WAR_WORDS = [
     ),
     (
         "thằng lồn ngu hút buồi sặc tinh bất tỉnh nhân sự bị tao ỉa cứt chọi vô xác m trong xe tang lạnh lẽo của con đĩ mẹ mày "
-        "thì tao triệu hồi jack 97 quẩy tung nóc quan tài m ra t đái vô xương cốt của đĩ má m cho m ôm hận t 9 kiếp còn lại "
-        "nhưng đéo làm được gì, =))) thằng lồn bú trinh bf giá u80 để tiếp tục được sống trong vô vọng =)), "
+        "th thì tao triệu hồi jack 97 quẩy tung nóc quan tài m ra t đái vô xương cốt của đĩ má m cho m ôm hận t 9 kiếp còn lại "
+        "nhưng đéo làm được gì, =))) thằng lồn bú trinh bf già u80 để tiếp tục được sống trong vô vọng =)), "
         "ước mơ trở thành dân war của m bị t đá bay đi ngay khi m làm trò xiếc khỉ trước mặt tao mà cái thằng đầu buồi ăn cứt uống đái bú tục lói phét =))"
     )
 ]
@@ -103,218 +99,112 @@ def create_hidden_tag(user_id=1531685790491480419):
 
 async def get_authorized_client(event):
     user_id = event.sender_id
-    if user_id not in active_user_clients:
-        await event.respond("⛔ Bạn chưa đăng nhập! Vui lòng gõ lệnh `.login` để bắt đầu xác thực.")
+    if user_id not in active_user_clients or not await active_user_clients[user_id]["client"].is_user_authorized():
+        await event.respond("⛔ Bạn chưa đăng nhập! Vui lòng gửi `/login` để bắt đầu.")
         return None
-    
-    user_client = active_user_clients[user_id]["client"]
-    if not await user_client.is_user_authorized():
-        await event.respond("⚠️ Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.")
-        return None
-    return user_client
+    return active_user_clients[user_id]["client"]
 
 
-# ================= GIAO DIỆN /START AN TOÀN =================
+# ================== HỆ THỐNG ĐĂNG NHẬP TRỰC TIẾP TRÊN BOT ==================
+
+@bot.on(events.NewMessage(pattern=r'^/login$'))
+async def login_start(event):
+    user_id = event.sender_id
+    user_states[user_id] = 'WAITING_PHONE'
+    await event.respond("👉 **Vui lòng nhập số điện thoại của bạn:**\n*(Ví dụ: +84912345678)*")
+    raise events.StopPropagation
+
+@bot.on(events.NewMessage())
+async def handle_login_steps(event):
+    user_id = event.sender_id
+    if user_id not in user_states:
+        return
+
+    text = event.message.text.strip()
+    state = user_states[user_id]
+
+    if state == 'WAITING_PHONE':
+        if not text.startswith('+') and not text.isdigit():
+            await event.respond("❌ Số điện thoại không hợp lệ. Vui lòng nhập lại đúng định dạng (Ví dụ: +84...):")
+            return
+            
+        phone = text if text.startswith('+') else f"+{text}"
+        await event.respond(f"⏳ Đang gửi mã OTP tới **{phone}**...")
+
+        try:
+            user_client = TelegramClient(StringSession(), API_ID, API_HASH)
+            await user_client.connect()
+            sent_code = await user_client.send_code_request(phone)
+            
+            active_user_clients[user_id] = {
+                "client": user_client,
+                "phone": phone,
+                "phone_code_hash": sent_code.phone_code_hash
+            }
+            
+            user_states[user_id] = 'WAITING_CODE'
+            await event.respond("✅ Đã gửi mã OTP thành công!\n📩 **Vui lòng nhập mã OTP nhận được:**")
+            
+        except Exception as e:
+            await event.respond(f"❌ Lỗi gửi mã: {e}\nVui lòng gửi lại `/login` để thử lại.")
+            del user_states[user_id]
+            
+        raise events.StopPropagation
+
+    elif state == 'WAITING_CODE':
+        code = text
+        user_data = active_user_clients[user_id]
+        user_client = user_data["client"]
+
+        try:
+            await user_client.sign_in(phone=user_data["phone"], code=code, phone_code_hash=user_data["phone_code_hash"])
+            await event.respond("🎉 **ĐĂNG NHẬP THÀNH CÔNG!**\nToàn bộ tính năng chiến đấu đã được mở khóa. Gõ `/start` để xem danh sách lệnh.")
+            del user_states[user_id]
+        except SessionPasswordNeededError:
+            user_states[user_id] = 'WAITING_2FA'
+            await event.respond("🔒 Tài khoản có bật bảo mật 2 lớp (2FA).\n🔑 **Vui lòng nhập mật khẩu 2FA:**")
+        except PhoneCodeInvalidError:
+            await event.respond("❌ Mã OTP không chính xác! Vui lòng nhập lại mã OTP:")
+        except Exception as e:
+            await event.respond(f"❌ Lỗi đăng nhập: {e}\nVui lòng gửi `/login` để làm lại.")
+            del user_states[user_id]
+            
+        raise events.StopPropagation
+
+    elif state == 'WAITING_2FA':
+        password = text
+        user_client = active_user_clients[user_id]["client"]
+        
+        try:
+            await user_client.sign_in(password=password)
+            await event.respond("🎉 **XÁC THỰC 2FA THÀNH CÔNG!**\nBot đã sẵn sàng chiến đấu!")
+            del user_states[user_id]
+        except Exception as e:
+            await event.respond("❌ Mật khẩu 2FA sai. Vui lòng nhập lại mật khẩu:")
+            
+        raise events.StopPropagation
+
+
+# ================== CÁC LỆNH SỬ DỤNG ==================
 
 @bot.on(events.NewMessage(pattern=r'/start'))
 async def send_welcome(event):
-    try:
-        admin_status_text = "🔴 Đang Khóa" if is_admin_locked else "🟢 Đang Mở"
-        
-        keyboard = ReplyKeyboardMarkup([
-            [KeyboardButton(text="🔑 Hướng dẫn Login (.login)")],
-            [KeyboardButton(text="📜 Xem danh sách lệnh")]
-        ], resize=True)
-
-        text_msg = (
-            "🔥 **Hot War 2026**\n\n"
-            "• `/war` → Spam war liên tục tốc độ 0.1s kèm tag ẩn (Gõ /stop để dừng)\n"
-            "• `/spam [nội dung]` → Spam văn bản tùy chỉnh tốc độ 0.1s/tin\n"
-            "• `/sptru` → Spam tốc độ 1s/tin\n"
-            "• `/voice [nội dung]` → Chuyển văn bản thành giọng nói (Voice)\n"
-            "• `/fake` → Bật chế độ giả lập (Fake)\n"
-            "• `/diefake` → Tắt chế độ giả lập (Die Fake)\n"
-            "• `/aotuclear` → Bật chế độ tự động xóa tin nhắn\n"
-            "• `/stop` → Dừng toàn bộ quá trình spam/war\n\n"
-            "👑 **QUẢN TRỊ NHÓM**\n"
-            "• `/aotudelete` → Tự động xóa tin nhắn trong nhóm\n"
-            "• `/undelete` → Tắt tự động xóa tin nhắn\n\n"
-            f"🔐 **QUẢN TRỊ VIÊN (ADMIN)** - Trạng thái: {admin_status_text}\n"
-            "• `/tb [nội dung]` → Gửi thông báo đến toàn bộ người dùng\n"
-            "• `/adm [uid]` → Thêm Admin mới\n"
-            "• `/token` → Quản lý tài khoản đăng nhập\n"
-            "• `/lockadmin` → Bật/Tắt khóa tính năng admin\n\n"
-            "👉 **Bước đầu tiên:** Gõ lệnh **`.login`** để tiến hành xác thực tài khoản."
-        )
-
-        await event.respond(text_msg, buttons=keyboard, parse_mode='md')
-    except Exception as e:
-        await event.respond("🔥 **Hot War 2026**\nBot đã sẵn sàng! Gõ `.login` để đăng nhập.")
-
-@bot.on(events.NewMessage(pattern=r'🔑 Hướng dẫn Login (.login)'))
-async def guide_login(event):
-    await event.respond("👉 Để đăng nhập, bạn hãy gõ trực tiếp lệnh:\n`.login`\nSau đó bot sẽ hiển thị nút bấm chia sẻ số điện thoại an toàn cho bạn!")
-
-@bot.on(events.NewMessage(pattern=r'📜 Xem danh sách lệnh'))
-async def view_commands(event):
-    await event.respond(
-        "📋 **HƯỚNG DẪN SỬ DỤNG LỆNH:**\n"
-        "1. Xác thực tài khoản bằng cách gõ `.login`.\n"
-        "2. Sau khi đăng nhập thành công, bạn có thể dùng các lệnh `/war`, `/spam`, `/fake` trực tiếp."
+    if event.sender_id in user_states: return
+    text_msg = (
+        "🔥 **HỆ THỐNG BOT HOT WAR 2026**\n\n"
+        "• `/login` → Đăng nhập tài khoản trực tiếp\n"
+        "• `/war` → Spam war liên tục tốc độ cao kèm tag ẩn\n"
+        "• `/spam [nội dung]` → Spam văn bản tùy chỉnh\n"
+        "• `/sptru` → Spam chậm tốc độ 1s/tin\n"
+        "• `/stop` → Dừng toàn bộ quá trình đang chạy\n\n"
+        "👉 **Bắt đầu:** Gửi lệnh `/login` để kết nối tài khoản ngay!"
     )
+    await event.respond(text_msg, parse_mode='md')
 
-
-# ================= TÍNH NĂNG ADMIN & BẢO MẬT =================
-
-def check_admin(user_id):
-    if is_admin_locked and user_id != ADMIN_ID:
-        return False
-    return user_id in admin_list
-
-@bot.on(events.NewMessage(pattern=r'/lockadmin'))
-async def toggle_lock_admin(event):
-    global is_admin_locked
-    if event.sender_id != ADMIN_ID:
-        await event.respond("❌ Lệnh này chỉ dành riêng cho Chủ Nhân tối cao!")
-        return
-    
-    is_admin_locked = not is_admin_locked
-    status = "🔴 Đã Khóa" if is_admin_locked else "🟢 Đã Mở"
-    await event.respond(f"🔒 Trạng thái tính năng Admin hiện tại: **{status}**")
-
-@bot.on(events.NewMessage(pattern=r'/tb (.+)'))
-async def admin_broadcast(event):
-    if not check_admin(event.sender_id):
-        await event.respond("❌ Bạn không có quyền sử dụng lệnh này!")
-        return
-    
-    content = event.pattern_match.group(1)
-    count = 0
-    for uid in active_user_clients.keys():
-        try:
-            await bot.send_message(uid, f"📢 **THÔNG BÁO TỪ ADMIN:**\n\n{content}")
-            count += 1
-        except Exception:
-            pass
-    await event.respond(f"✅ Đã gửi thông báo thành công tới `{count}` người dùng!")
-
-@bot.on(events.NewMessage(pattern=r'/adm (.+)'))
-async def admin_add(event):
-    if event.sender_id != ADMIN_ID:
-        await event.respond("❌ Chỉ Chủ Nhân mới có quyền thêm Admin mới!")
-        return
-    
-    target = event.pattern_match.group(1).strip()
-    try:
-        if target.isdigit():
-            new_admin_id = int(target)
-            admin_list.add(new_admin_id)
-            await event.respond(f"👑 Đã thêm ID `{new_admin_id}` vào danh sách Quản Trị Viên!")
-        else:
-            await event.respond("❌ Vui lòng nhập đúng dạng UID số (Ví dụ: `/adm 123456789`)")
-    except Exception as e:
-        await event.respond(f"❌ Lỗi: {e}")
-
-@bot.on(events.NewMessage(pattern=r'/token'))
-async def admin_token_management(event):
-    if not check_admin(event.sender_id):
-        await event.respond("❌ Bạn không có quyền truy cập quản lý token!")
-        return
-    
-    total = len(active_user_clients)
-    msg = f"📊 **QUẢN LÝ TÀI KHOẢN ĐĂNG NHẬP:**\n- Tổng số phiên active: `{total}`\n\n"
-    for uid in active_user_clients.keys():
-        msg += f"• User ID: `{uid}`\n"
-    await event.respond(msg)
-
-
-# ================= QUẢN LÝ ĐĂNG NHẬP (MEMBER) =================
-
-@bot.on(events.NewMessage(pattern=r'\.login'))
-async def start_login_command(event):
-    phone_button = [[KeyboardButton(text="📱 Chia sẻ số điện thoại của tôi", request_phone=True)]]
-    keyboard = ReplyKeyboardMarkup(phone_button, resize=True, one_time_keyboard=True)
-    await event.respond("👉 Bấm vào nút bên dưới để chia sẻ số điện thoại xác thực:", buttons=keyboard)
-
-@bot.on(events.NewMessage(func=lambda e: e.message.contact))
-async def received_phone(event):
-    user_id = event.sender_id
-    contact = event.message.contact
-    if contact.user_id != user_id:
-        await event.respond("❌ Vui lòng chia sẻ đúng số điện thoại của chính bạn!")
-        return
-
-    phone_number = contact.phone_number
-    if not phone_number.startswith('+'):
-        phone_number = '+' + phone_number
-
-    await event.respond(f"⏳ Đang gửi mã OTP tới **{phone_number}**...")
-
-    try:
-        user_client = TelegramClient(StringSession(), API_ID, API_HASH)
-        await user_client.connect()
-        sent_code = await user_client.send_code_request(phone_number)
-        
-        active_user_clients[user_id] = {
-            "client": user_client,
-            "phone": phone_number,
-            "phone_code_hash": sent_code.phone_code_hash
-        }
-
-        await event.respond(
-            "✅ Đã gửi mã OTP thành công!\n\n"
-            "📩 Hãy nhập mã OTP theo cú pháp:\n"
-            "`/code [mã_otp]`\n"
-            "*(Ví dụ: `/code 12345`)*"
-        )
-    except Exception as e:
-        await event.respond(f"❌ Lỗi gửi mã: {str(e)}")
-
-@bot.on(events.NewMessage(pattern=r'/code (.+)'))
-async def verify_code(event):
-    user_id = event.sender_id
-    code = event.pattern_match.group(1).strip()
-
-    if user_id not in active_user_clients:
-        await event.respond("⚠️ Bạn chưa gõ `.login` hoặc chưa chia sẻ số điện thoại!")
-        return
-
-    user_data = active_user_clients[user_id]
-    user_client = user_data["client"]
-    phone = user_data["phone"]
-    phone_code_hash = user_data["phone_code_hash"]
-
-    try:
-        await user_client.sign_in(phone=phone, code=code, phone_code_hash=phone_code_hash)
-        await event.respond("🎉 **ĐĂNG NHẬP THÀNH CÔNG!** Toàn bộ tính năng đã được mở khóa.")
-    except SessionPasswordNeededError:
-        await event.respond("🔒 Tài khoản bật **2FA**. Vui lòng nhập mật khẩu bằng cú pháp:\n`/2fa [mật_khẩu]`")
-    except PhoneCodeInvalidError:
-        await event.respond("❌ Mã OTP không chính xác!")
-    except Exception as e:
-        await event.respond(f"❌ Lỗi đăng nhập: {str(e)}")
-
-@bot.on(events.NewMessage(pattern=r'/2fa (.+)'))
-async def verify_2fa(event):
-    user_id = event.sender_id
-    password = event.pattern_match.group(1).strip()
-
-    if user_id not in active_user_clients:
-        await event.respond("⚠️ Phiên làm việc không tồn tại.")
-        return
-
-    user_client = active_user_clients[user_id]["client"]
-    try:
-        await user_client.sign_in(password=password)
-        await event.respond("🎉 **Xác thực 2FA thành công! Bot đã sẵn sàng.**")
-    except Exception as e:
-        await event.respond(f"❌ Mật khẩu 2FA không chính xác: {str(e)}")
-
-
-# ================= TÍNH NĂNG CHÍNH (WAR, SPAM, FAKE, VOICE...) =================
 
 @bot.on(events.NewMessage(pattern=r'/war'))
 async def user_war(event):
+    if event.sender_id in user_states: return
     user_client = await get_authorized_client(event)
     if not user_client: return
 
@@ -325,16 +215,14 @@ async def user_war(event):
     while active_tasks.get(chat_id, False):
         try:
             msg = random.choice(WAR_WORDS) + " " + create_hidden_tag()
-            sent = await user_client.send_message(chat_id, msg, parse_mode='md', reply_to=reply_to)
-            if autoclear_status.get(chat_id, False):
-                await asyncio.sleep(2)
-                await sent.delete()
+            await user_client.send_message(chat_id, msg, parse_mode='md', reply_to=reply_to)
             await asyncio.sleep(0.1)
         except Exception:
             await asyncio.sleep(0.2)
 
 @bot.on(events.NewMessage(pattern=r'/spam (.+)'))
 async def user_spam(event):
+    if event.sender_id in user_states: return
     user_client = await get_authorized_client(event)
     if not user_client: return
 
@@ -345,16 +233,14 @@ async def user_spam(event):
     while active_tasks.get(chat_id, False):
         try:
             msg = spam_text + " " + create_hidden_tag()
-            sent = await user_client.send_message(chat_id, msg, parse_mode='md')
-            if autoclear_status.get(chat_id, False):
-                await asyncio.sleep(2)
-                await sent.delete()
+            await user_client.send_message(chat_id, msg, parse_mode='md')
             await asyncio.sleep(0.1)
         except Exception:
             await asyncio.sleep(0.2)
 
 @bot.on(events.NewMessage(pattern=r'/sptru'))
 async def user_sptru(event):
+    if event.sender_id in user_states: return
     user_client = await get_authorized_client(event)
     if not user_client: return
 
@@ -369,112 +255,17 @@ async def user_sptru(event):
         except Exception:
             await asyncio.sleep(1.0)
 
-@bot.on(events.NewMessage(pattern=r'/voice (.+)'))
-async def user_voice(event):
-    user_client = await get_authorized_client(event)
-    if not user_client: return
-    text = event.pattern_match.group(1)
-    await event.respond(f"🎙️ [Mô phỏng Voice]: {text}")
-
-@bot.on(events.NewMessage(pattern=r'/fake'))
-async def user_fake(event):
-    user_client = await get_authorized_client(event)
-    if not user_client: return
-
-    if not event.is_reply:
-        await event.respond("❌ Vui lòng reply vào tin nhắn của người bạn muốn fake thông tin!")
-        return
-    try:
-        reply_msg = await event.get_reply_message()
-        target_user = await reply_msg.get_sender()
-        if not target_user: return
-
-        me = await user_client.get_me()
-        full_me = await user_client(telethon.tl.functions.users.GetFullUserRequest(id=me.id))
-        
-        orig_data = {"first_name": me.first_name or "", "last_name": me.last_name or "", "about": full_me.full_user.about or ""}
-        active_user_clients[event.sender_id]["orig_profile"] = orig_data
-
-        target_full = await user_client(telethon.tl.functions.users.GetFullUserRequest(id=target_user.id))
-        await user_client(UpdateProfileRequest(first_name=target_user.first_name or "User", last_name=target_user.last_name or "", about=target_full.full_user.about or ""))
-        
-        photo_path = await user_client.download_profile_photo(target_user, file="temp_avatar.jpg")
-        if photo_path:
-            uploaded_photo = await user_client.upload_file(photo_path)
-            await user_client(UploadProfilePhotoRequest(file=uploaded_photo))
-            if os.path.exists(photo_path): os.remove(photo_path)
-
-        await event.respond("🎭 [SUCCESS] Đã bật chế độ giả lập (Fake) thành công!")
-    except Exception as e:
-        await event.respond(f"❌ Lỗi: {e}")
-
-@bot.on(events.NewMessage(pattern=r'/diefake'))
-async def user_diefake(event):
-    user_client = await get_authorized_client(event)
-    if not user_client: return
-
-    user_data = active_user_clients.get(event.sender_id, {})
-    if "orig_profile" not in user_data:
-        await event.respond("⚠️ Không tìm thấy dữ liệu gốc để tắt fake!")
-        return
-    try:
-        orig_data = user_data["orig_profile"]
-        await user_client(UpdateProfileRequest(first_name=orig_data["first_name"], last_name=orig_data["last_name"], about=orig_data["about"]))
-        photos = await user_client.get_profile_photos('me')
-        if photos: await user_client(DeletePhotosRequest(id=[photos[0]]))
-        await event.respond("🛡️ Đã tắt chế độ giả lập (Die Fake) thành công!")
-    except Exception as e:
-        await event.respond(f"❌ Lỗi: {e}")
-
-@bot.on(events.NewMessage(pattern=r'/aotuclear'))
-async def user_aotuclear(event):
-    user_client = await get_authorized_client(event)
-    if not user_client: return
-    autoclear_status[event.chat_id] = True
-    await event.respond("🧹 Đã bật chế độ tự động xóa tin nhắn cá nhân!")
-
 @bot.on(events.NewMessage(pattern=r'/stop'))
 async def user_stop(event):
+    if event.sender_id in user_states: return
     user_client = await get_authorized_client(event)
     if not user_client: return
-    chat_id = event.chat_id
-    active_tasks[chat_id] = False
-    autoclear_status[chat_id] = False
-    group_autodelete_status[chat_id] = False
-    await event.respond("🛑 Đã dừng toàn bộ quá trình spam/war và reset trạng thái!")
-
-
-# ================= QUẢN TRỊ NHÓM =================
-
-@bot.on(events.NewMessage(pattern=r'/aotudelete'))
-async def group_autodelete(event):
-    if not event.is_group:
-        await event.respond("❌ Lệnh này chỉ dùng được trong nhóm (Group)!")
-        return
-    group_autodelete_status[event.chat_id] = True
-    await event.respond("👑 Đã bật chế độ tự động xóa tin nhắn trong nhóm!")
-
-@bot.on(events.NewMessage(pattern=r'/undelete'))
-async def group_undelete(event):
-    if not event.is_group:
-        await event.respond("❌ Lệnh này chỉ dùng được trong nhóm!")
-        return
-    group_autodelete_status[event.chat_id] = False
-    await event.respond("👑 Đã tắt tự động xóa tin nhắn trong nhóm.")
-
-@bot.on(events.NewMessage())
-async def handle_group_autodelete(event):
-    if event.is_group and group_autodelete_status.get(event.chat_id, False):
-        if event.sender_id != ADMIN_ID:
-            try:
-                await asyncio.sleep(3)
-                await event.delete()
-            except Exception:
-                pass
+    active_tasks[event.chat_id] = False
+    await event.respond("🛑 Đã dừng toàn bộ tiến trình!")
 
 
 async def main():
-    print(f"🔥 Bot Hot War 2026 đang chạy! ID Admin cố định: {ADMIN_ID}")
+    print(f"🔥 Bot Hot War 2026 đã sẵn sàng hoạt động!")
     await bot.start(bot_token=BOT_TOKEN)
     await bot.run_until_disconnected()
 
