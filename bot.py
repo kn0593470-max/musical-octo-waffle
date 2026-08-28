@@ -2,7 +2,6 @@ import logging
 import asyncio
 import random
 import os
-import json
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from telethon import TelegramClient, events
@@ -19,19 +18,19 @@ API_HASH = "cd3c7822f740b7b7af660de3cb1c9f9d"
 BOT_TOKEN = "8704592597:AAEK_FoX078pKAYtFqSoPGLINMEf1Y2QakQ"
 ADMIN_ID = 7907990385
 
-# --- MỞ CỔNG GIẢ LẬP ĐỂ QUA MẶT RENDER (WEB SERVICE FIX) ---
+# --- MỞ CỔNG HTTP GIẢ LẬP ĐỂ QUA MẶT RENDER (WEB SERVICE FIX) ---
 class DummyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot Hot War 2026 is running!")
+        self.wfile.write(b"Bot Hot War 2026 is running successfully!")
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), DummyHandler)
     server.serve_forever()
 
-# Chạy web server ở luồng phụ để không ảnh hưởng bot
+# Chạy web server ở luồng phụ để Render không bị timeout port
 threading.Thread(target=run_web_server, daemon=True).start()
 
 # Lưu trữ trạng thái hệ thống
@@ -91,7 +90,7 @@ WAR_WORDS = [
     (
         "thằng lồn ngu hút buồi sặc tinh bất tỉnh nhân sự bị tao ỉa cứt chọi vô xác m trong xe tang lạnh lẽo của con đĩ mẹ mày "
         "thì tao triệu hồi jack 97 quẩy tung nóc quan tài m ra t đái vô xương cốt của đĩ má m cho m ôm hận t 9 kiếp còn lại "
-        "nhưng đéo làm được gì, =))) thằng lồn bú trinh bf già u80 để tiếp tục được sống trong vô vọng =)), "
+        "nhưng đéo làm được gì, =))) thằng lồn bú trinh bf giá u80 để tiếp tục được sống trong vô vọng =)), "
         "ước mơ trở thành dân war của m bị t đá bay đi ngay khi m làm trò xiếc khỉ trước mặt tao mà cái thằng đầu buồi ăn cứt uống đái bú tục lói phét =))"
     )
 ]
