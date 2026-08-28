@@ -14,8 +14,8 @@ import telethon.tl.functions.users
 # --- CẤU HÌNH API & BOT ---
 API_ID = 39485214
 API_HASH = "cd3c7822f740b7b7af660de3cb1c9f9d"
-BOT_TOKEN = "8704592597:AAEK_FoX078pKAYtFqSoPGLINMEf1Y2QakQ"  # Token của ông đã được điền sẵn
-ADMIN_ID = 7907990385  # ID chủ nhân cố định của ông
+BOT_TOKEN = "8704592597:AAEK_FoX078pKAYtFqSoPGLINMEf1Y2QakQ"
+ADMIN_ID = 7907990385
 
 # Lưu trữ trạng thái hệ thống
 active_user_clients = {}
@@ -73,7 +73,7 @@ WAR_WORDS = [
     ),
     (
         "thằng lồn ngu hút buồi sặc tinh bất tỉnh nhân sự bị tao ỉa cứt chọi vô xác m trong xe tang lạnh lẽo của con đĩ mẹ mày "
-        "th thì tao triệu hồi jack 97 quẩy tung nóc quan tài m ra t đái vô xương cốt của đĩ má m cho m ôm hận t 9 kiếp còn lại "
+        "thì tao triệu hồi jack 97 quẩy tung nóc quan tài m ra t đái vô xương cốt của đĩ má m cho m ôm hận t 9 kiếp còn lại "
         "nhưng đéo làm được gì, =))) thằng lồn bú trinh bf già u80 để tiếp tục được sống trong vô vọng =)), "
         "ước mơ trở thành dân war của m bị t đá bay đi ngay khi m làm trò xiếc khỉ trước mặt tao mà cái thằng đầu buồi ăn cứt uống đái bú tục lói phét =))"
     )
@@ -98,37 +98,45 @@ async def get_authorized_client(event):
     return user_client
 
 
-# ================= GIAO DIỆN /START =================
+# ================= GIAO DIỆN /START (ĐÃ FIX AN TOÀN) =================
 
 @bot.on(events.NewMessage(pattern=r'/start'))
 async def send_welcome(event):
-    admin_status_text = "🔴 Đang Khóa" if is_admin_locked else "🟢 Đang Mở"
-    keyboard = ReplyKeyboardMarkup([
-        [KeyboardButton(text="📱 Login (Chia sẻ số điện thoại)", request_phone=True)],
-        [KeyboardButton(text="📜 Xem danh sách lệnh")]
-    ], resize=True)
+    try:
+        admin_status_text = "🔴 Đang Khóa" if is_admin_locked else "🟢 Đang Mở"
+        keyboard = ReplyKeyboardMarkup([
+            [KeyboardButton(text="📱 Login (Chia sẻ số điện thoại)", request_phone=True)],
+            [KeyboardButton(text="📜 Xem danh sách lệnh")]
+        ], resize=True)
 
-    await event.respond(
-        "🔥 **Hot War 2026 🤪👈**\n\n"
-        "• `/war` → Spam war liên tục tốc độ 0.1s kèm tag ẩn (Gõ /stop để dừng)\n"
-        "• `/spam [nội dung]` → Spam văn bản tùy chỉnh tốc độ 0.1s/tin\n"
-        "• `/sptru` → Spam tốc độ 1s/tin\n"
-        "• `/voice [nội dung]` → Chuyển văn bản thành giọng nói (Voice)\n"
-        "• `/fake` → Bật chế độ giả lập (Fake)\n"
-        "• `/diefake` → Tắt chế độ giả lập (Die Fake)\n"
-        "• `/aotuclear` → Bật chế độ tự động xóa tin nhắn\n"
-        "• `/stop` → Dừng toàn bộ quá trình spam/war\n\n"
-        "👑 **QUẢN TRỊ NHÓM**\n"
-        "• `/aotudelete` → Tự động xóa tin nhắn trong nhóm\n"
-        "• `/undelete` → Tắt tự động xóa tin nhắn\n\n"
-        f"🔐 **QUẢN TRỊ VIÊN (ADMIN)** - Trạng thái: {admin_status_text}\n"
-        "• `/tb [nội dung]` → Gửi thông báo đến toàn bộ người dùng\n"
-        "• `/adm [uid hoặc @username]` → Thêm Admin mới\n"
-        "• `/token` → Quản lý tài khoản đăng nhập & cấm dùng\n"
-        "• `/lockadmin` → Bật/Tắt khóa tính năng admin\n\n"
-        "👉 **Bước đầu tiên:** Bấm nút **Login** bên dưới để chia sẻ số điện thoại xác thực.",
-        buttons=keyboard
-    )
+        text_msg = (
+            "🔥 **Hot War 2026**\n\n"
+            "• `/war` → Spam war liên tục tốc độ 0.1s kèm tag ẩn (Gõ /stop để dừng)\n"
+            "• `/spam [nội dung]` → Spam văn bản tùy chỉnh tốc độ 0.1s/tin\n"
+            "• `/sptru` → Spam tốc độ 1s/tin\n"
+            "• `/voice [nội dung]` → Chuyển văn bản thành giọng nói (Voice)\n"
+            "• `/fake` → Bật chế độ giả lập (Fake)\n"
+            "• `/diefake` → Tắt chế độ giả lập (Die Fake)\n"
+            "• `/aotuclear` → Bật chế độ tự động xóa tin nhắn\n"
+            "• `/stop` → Dừng toàn bộ quá trình spam/war\n\n"
+            "👑 **QUẢN TRỊ NHÓM**\n"
+            "• `/aotudelete` → Tự động xóa tin nhắn trong nhóm\n"
+            "• `/undelete` → Tắt tự động xóa tin nhắn\n\n"
+            f"🔐 **QUẢN TRỊ VIÊN (ADMIN)** - Trạng thái: {admin_status_text}\n"
+            "• `/tb [nội dung]` → Gửi thông báo đến toàn bộ người dùng\n"
+            "• `/adm [uid]` → Thêm Admin mới\n"
+            "• `/token` → Quản lý tài khoản đăng nhập\n"
+            "• `/lockadmin` → Bật/Tắt khóa tính năng admin\n\n"
+            "👉 **Bước đầu tiên:** Bấm nút **Login** bên dưới để chia sẻ số điện thoại xác thực."
+        )
+
+        await event.respond(text_msg, buttons=keyboard, parse_mode='md')
+    except Exception as e:
+        # Dự phòng nếu lỗi cú pháp markdown hoặc bàn phím
+        try:
+            await event.respond("🔥 **Hot War 2026**\nBot đã sẵn sàng! Gõ `.login` để đăng nhập.")
+        except:
+            pass
 
 @bot.on(events.NewMessage(pattern=r'📜 Xem danh sách lệnh'))
 async def view_commands(event):
@@ -160,7 +168,7 @@ async def toggle_lock_admin(event):
 @bot.on(events.NewMessage(pattern=r'/tb (.+)'))
 async def admin_broadcast(event):
     if not check_admin(event.sender_id):
-        await event.respond("❌ Bạn không có quyền sử dụng lệnh này (hoặc Admin đang bị khóa)!")
+        await event.respond("❌ Bạn không có quyền sử dụng lệnh này!")
         return
     
     content = event.pattern_match.group(1)
