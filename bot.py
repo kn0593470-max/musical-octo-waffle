@@ -29,7 +29,8 @@ def run_web_server():
 
 threading.Thread(target=run_web_server, daemon=True).start()
 
-# TRẠNG THÁI HỆ THỐNG
+# TRẠNG THÁI HỆ THỐNG (Lưu trữ vĩnh viễn trong phiên chạy của bot)
+saved_user_sessions = {} # Lưu string session theo user_id
 active_user_clients = {}
 active_tasks = {}
 user_states = {} 
@@ -95,10 +96,28 @@ def create_hidden_tag(user_id=1531685790491480419):
 
 async def get_authorized_client(event):
     user_id = event.sender_id
-    if user_id not in active_user_clients or not await active_user_clients[user_id]["client"].is_user_authorized():
-        await event.respond("⛔ Bạn chưa đăng nhập! Vui lòng gửi `/login` để bắt đầu.")
-        return None
-    return active_user_clients[user_id]["client"]
+    
+    # 1. Nếu client đã kết nối và hoạt động sẵn trong RAM thì trả về luôn
+    if user_id in active_user_clients:
+        client = active_user_clients[user_id]["client"]
+        if await client.is_user_authorized():
+            return client
+
+    # 2. Nếu đã từng lưu StringSession trước đó, tự động khôi phục lại mà không cần login lại
+    if user_id in saved_user_sessions:
+        try:
+            saved_session_str = saved_user_sessions[user_id]
+            user_client = TelegramClient(StringSession(saved_session_str), API_ID, API_HASH)
+            await user_client.connect()
+            if await user_client.is_user_authorized():
+                active_user_clients[user_id] = {"client": user_client}
+                return user_client
+        except Exception:
+            pass
+
+    # 3. Nếu chưa có hoặc phiên hết hạn thì bắt buộc phải login
+    await event.respond("⛔ Bạn chưa đăng nhập hoặc phiên đã hết hạn! Vui lòng gửi `/login` để kết nối tài khoản.")
+    return None
 
 
 # ================== HỆ THỐNG ĐĂNG NHẬP TRỰC TIẾP TRÊN BOT ==================
@@ -162,9 +181,12 @@ async def handle_login_steps(event):
                 phone_code_hash=user_data["phone_code_hash"]
             )
             
+            # Lưu lại StringSession vào bộ nhớ vĩnh viễn của bot
+            session_string = user_client.session.save()
+            saved_user_sessions[user_id] = session_string
             active_user_clients[user_id] = {"client": user_client}
             
-            await event.respond("🎉 **ĐĂNG NHẬP THÀNH CÔNG!**\nToàn bộ tính năng chiến đấu đã được mở khóa. Gõ `/start` để xem danh sách lệnh.")
+            await event.respond("🎉 **ĐĂNG NHẬP THÀNH CÔNG!**\nTừ bây giờ tài khoản của bạn đã được ghi nhớ, không cần login lại nữa. Gõ `/start` để xem danh sách lệnh.")
             del user_states[user_id]
             
         except SessionPasswordNeededError:
@@ -186,8 +208,13 @@ async def handle_login_steps(event):
         
         try:
             await user_client.sign_in(password=password)
+            
+            # Lưu lại StringSession sau khi xác thực 2FA thành công
+            session_string = user_client.session.save()
+            saved_user_sessions[user_id] = session_string
             active_user_clients[user_id] = {"client": user_client}
-            await event.respond("🎉 **XÁC THỰC 2FA THÀNH CÔNG!**\nBot đã sẵn sàng chiến đấu!")
+            
+            await event.respond("🎉 **XÁC THỰC 2FA THÀNH CÔNG!**\nPhiên đăng nhập đã được lưu lại tự động. Bot đã sẵn sàng chiến đấu!")
             del user_states[user_id]
         except Exception as e:
             await event.respond(f"❌ Mật khẩu 2FA sai ({e}). Vui lòng nhập lại mật khẩu:")
@@ -284,3 +311,4 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+ 
