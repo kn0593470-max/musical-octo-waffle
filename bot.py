@@ -88,7 +88,7 @@ def create_hidden_tag(user_id=1531685790491480419):
 async def get_authorized_client(event):
     user_id = event.sender_id
     if user_id not in active_user_clients:
-        await event.respond("⛔ Bạn chưa đăng nhập! Vui lòng bấm nút Login bên dưới hoặc gõ `.login` để xác thực.")
+        await event.respond("⛔ Bạn chưa đăng nhập! Vui lòng gõ lệnh `.login` để bắt đầu xác thực.")
         return None
     
     user_client = active_user_clients[user_id]["client"]
@@ -98,14 +98,16 @@ async def get_authorized_client(event):
     return user_client
 
 
-# ================= GIAO DIỆN /START (ĐÃ FIX AN TOÀN) =================
+# ================= GIAO DIỆN /START AN TOÀN =================
 
 @bot.on(events.NewMessage(pattern=r'/start'))
 async def send_welcome(event):
     try:
         admin_status_text = "🔴 Đang Khóa" if is_admin_locked else "🟢 Đang Mở"
+        
+        # Dùng phím text thông thường hoàn toàn không lỗi
         keyboard = ReplyKeyboardMarkup([
-            [KeyboardButton(text="📱 Login (Chia sẻ số điện thoại)", request_phone=True)],
+            [KeyboardButton(text="🔑 Hướng dẫn Login (.login)")],
             [KeyboardButton(text="📜 Xem danh sách lệnh")]
         ], resize=True)
 
@@ -127,22 +129,22 @@ async def send_welcome(event):
             "• `/adm [uid]` → Thêm Admin mới\n"
             "• `/token` → Quản lý tài khoản đăng nhập\n"
             "• `/lockadmin` → Bật/Tắt khóa tính năng admin\n\n"
-            "👉 **Bước đầu tiên:** Bấm nút **Login** bên dưới để chia sẻ số điện thoại xác thực."
+            "👉 **Bước đầu tiên:** Gõ lệnh **`.login`** để tiến hành xác thực tài khoản."
         )
 
         await event.respond(text_msg, buttons=keyboard, parse_mode='md')
     except Exception as e:
-        # Dự phòng nếu lỗi cú pháp markdown hoặc bàn phím
-        try:
-            await event.respond("🔥 **Hot War 2026**\nBot đã sẵn sàng! Gõ `.login` để đăng nhập.")
-        except:
-            pass
+        await event.respond("🔥 **Hot War 2026**\nBot đã sẵn sàng! Gõ `.login` để đăng nhập.")
+
+@bot.on(events.NewMessage(pattern=r'🔑 Hướng dẫn Login (.login)'))
+async def guide_login(event):
+    await event.respond("👉 Để đăng nhập, bạn hãy gõ trực tiếp lệnh:\n`.login`\nSau đó bot sẽ hiển thị nút bấm chia sẻ số điện thoại an toàn cho bạn!")
 
 @bot.on(events.NewMessage(pattern=r'📜 Xem danh sách lệnh'))
 async def view_commands(event):
     await event.respond(
         "📋 **HƯỚNG DẪN SỬ DỤNG LỆNH:**\n"
-        "1. Xác thực tài khoản bằng cách bấm nút `Login` hoặc gõ `.login`.\n"
+        "1. Xác thực tài khoản bằng cách gõ `.login`.\n"
         "2. Sau khi đăng nhập thành công, bạn có thể dùng các lệnh `/war`, `/spam`, `/fake` trực tiếp."
     )
 
@@ -215,9 +217,9 @@ async def admin_token_management(event):
 
 @bot.on(events.NewMessage(pattern=r'\.login'))
 async def start_login_command(event):
-    phone_button = [[KeyboardButton(text="📱 Chia sẻ số điện thoại để đăng nhập", request_phone=True)]]
+    phone_button = [[KeyboardButton(text="📱 Chia sẻ số điện thoại của tôi", request_phone=True)]]
     keyboard = ReplyKeyboardMarkup(phone_button, resize=True, one_time_keyboard=True)
-    await event.respond("👉 Bấm vào nút bên dưới để chia sẻ số điện thoại:", buttons=keyboard)
+    await event.respond("👉 Bấm vào nút bên dưới để chia sẻ số điện thoại xác thực:", buttons=keyboard)
 
 @bot.on(events.NewMessage(func=lambda e: e.message.contact))
 async def received_phone(event):
@@ -259,7 +261,7 @@ async def verify_code(event):
     code = event.pattern_match.group(1).strip()
 
     if user_id not in active_user_clients:
-        await event.respond("⚠️ Bạn chưa bấm Login hoặc chưa chia sẻ số điện thoại!")
+        await event.respond("⚠️ Bạn chưa gõ `.login` hoặc chưa chia sẻ số điện thoại!")
         return
 
     user_data = active_user_clients[user_id]
