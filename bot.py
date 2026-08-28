@@ -5,7 +5,7 @@ import os
 import json
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
-from telethon.tl.types import KeyboardButtonPhoneRequest, ReplyKeyboardMarkup, KeyboardButton
+from telethon.tl.types import ReplyKeyboardMarkup, KeyboardButton
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
 from telethon.tl.functions.account import UpdateProfileRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
@@ -103,7 +103,7 @@ async def get_authorized_client(event):
 async def send_welcome(event):
     admin_status_text = "🔴 Đang Khóa" if is_admin_locked else "🟢 Đang Mở"
     keyboard = ReplyKeyboardMarkup([
-        [KeyboardButtonPhoneRequest(text="📱 Login (Chia sẻ số điện thoại)")],
+        [KeyboardButton(text="📱 Login (Chia sẻ số điện thoại)", request_phone=True)],
         [KeyboardButton(text="📜 Xem danh sách lệnh")]
     ], resize=True)
 
@@ -206,7 +206,7 @@ async def admin_token_management(event):
 
 @bot.on(events.NewMessage(pattern=r'\.login'))
 async def start_login_command(event):
-    phone_button = [[KeyboardButtonPhoneRequest(text="📱 Chia sẻ số điện thoại để đăng nhập")]]
+    phone_button = [[KeyboardButton(text="📱 Chia sẻ số điện thoại để đăng nhập", request_phone=True)]]
     keyboard = ReplyKeyboardMarkup(phone_button, resize=True, one_time_keyboard=True)
     await event.respond("👉 Bấm vào nút bên dưới để chia sẻ số điện thoại:", buttons=keyboard)
 
