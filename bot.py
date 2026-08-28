@@ -13,6 +13,7 @@ API_ID = 39485214
 API_HASH = "cd3c7822f740b7b7af660de3cb1c9f9d"
 BOT_TOKEN = "8704592597:AAEK_FoX078pKAYtFqSoPGLINMEf1Y2QakQ"
 ADMIN_ID = 7907990385
+ADMIN_USERNAME = "ducnamkyy"
 
 # --- MỞ CỔNG HTTP GIẢ LẬP CHO RENDER ---
 class DummyHandler(BaseHTTPRequestHandler):
@@ -124,11 +125,13 @@ async def handle_login_steps(event):
             raise events.StopPropagation
             
         phone = text if text.startswith('+') else f"+{text}"
-        await event.respond(f"⏳ Đang gửi mã OTP tới **{phone}**...")
+        await event.respond(f"⏳ Đang khởi tạo phiên và gửi mã OTP tới **{phone}**...")
 
         try:
-            user_client = TelegramClient(StringSession(), API_ID, API_HASH)
+            user_session = StringSession()
+            user_client = TelegramClient(user_session, API_ID, API_HASH)
             await user_client.connect()
+            
             sent_code = await user_client.send_code_request(phone)
             
             user_states[user_id] = {
@@ -142,7 +145,8 @@ async def handle_login_steps(event):
             
         except Exception as e:
             await event.respond(f"❌ Lỗi gửi mã: {e}\nVui lòng gửi lại `/login` để thử lại.")
-            del user_states[user_id]
+            if user_id in user_states:
+                del user_states[user_id]
             
         raise events.StopPropagation
 
@@ -152,7 +156,11 @@ async def handle_login_steps(event):
         user_client = user_data["client"]
 
         try:
-            await user_client.sign_in(phone=user_data["phone"], code=code, phone_code_hash=user_data["phone_code_hash"])
+            await user_client.sign_in(
+                phone=user_data["phone"], 
+                code=code, 
+                phone_code_hash=user_data["phone_code_hash"]
+            )
             
             active_user_clients[user_id] = {"client": user_client}
             
@@ -166,7 +174,8 @@ async def handle_login_steps(event):
             await event.respond("❌ Mã OTP không chính xác! Vui lòng nhập lại mã OTP:")
         except Exception as e:
             await event.respond(f"❌ Lỗi đăng nhập: {e}\nVui lòng gửi `/login` để làm lại.")
-            del user_states[user_id]
+            if user_id in user_states:
+                del user_states[user_id]
             
         raise events.StopPropagation
 
@@ -192,15 +201,16 @@ async def handle_login_steps(event):
 async def send_welcome(event):
     if event.sender_id in user_states: return
     text_msg = (
-        "🔥 **HỆ THỐNG BOT HOT WAR 2026**\n\n"
-        "• `/login` → Đăng nhập tài khoản trực tiếp\n"
-        "• `/war` → Spam war liên tục tốc độ cao kèm tag ẩn\n"
-        "• `/spam [nội dung]` → Spam văn bản tùy chỉnh\n"
-        "• `/sptru` → Spam chậm tốc độ 1s/tin\n"
-        "• `/stop` → Dừng toàn bộ quá trình đang chạy\n\n"
-        "👉 **Bắt đầu:** Gửi lệnh `/login` để kết nối tài khoản ngay!"
+        "🔥 HỆ THỐNG BOT HOT WAR 2026\n\n"
+        "• /login → Đăng nhập tài khoản trực tiếp\n"
+        "• /war → Spam war liên tục tốc độ cao kèm tag ẩn\n"
+        "• /spam [nội dung] → Spam văn bản tùy chỉnh\n"
+        "• /sptru → Spam chậm tốc độ 1s/tin\n"
+        "• /stop → Dừng toàn bộ quá trình đang chạy\n\n"
+        "👉 Bắt đầu: Gửi lệnh /login để kết nối tài khoản ngay!\n"
+        f"Admin: @{ADMIN_USERNAME}"
     )
-    await event.respond(text_msg, parse_mode='md')
+    await event.respond(text_msg)
 
 
 @bot.on(events.NewMessage(pattern=r'/war'))
@@ -212,6 +222,8 @@ async def user_war(event):
     chat_id = event.chat_id
     active_tasks[chat_id] = True
     reply_to = event.get_reply_message().id if event.is_reply else None
+    
+    await event.respond("🔥 Bắt đầu chiến war tốc độ cao!")
     
     while active_tasks.get(chat_id, False):
         try:
@@ -266,10 +278,9 @@ async def user_stop(event):
 
 
 async def main():
-    print(f"🔥 Bot Hot War 2026 đã sẵn sàng hoạt động!")
+    print(f"🔥 Bot Hot War 2026 của @{ADMIN_USERNAME} đã sẵn sàng hoạt động!")
     await bot.start(bot_token=BOT_TOKEN)
     await bot.run_until_disconnected()
 
 if __name__ == '__main__':
     asyncio.run(main())
- 
