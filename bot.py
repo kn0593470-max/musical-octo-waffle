@@ -3,6 +3,8 @@ import asyncio
 import random
 import os
 import json
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.tl.types import ReplyKeyboardMarkup, KeyboardButton
@@ -16,6 +18,21 @@ API_ID = 39485214
 API_HASH = "cd3c7822f740b7b7af660de3cb1c9f9d"
 BOT_TOKEN = "8704592597:AAEK_FoX078pKAYtFqSoPGLINMEf1Y2QakQ"
 ADMIN_ID = 7907990385
+
+# --- MỞ CỔNG GIẢ LẬP ĐỂ QUA MẶT RENDER (WEB SERVICE FIX) ---
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot Hot War 2026 is running!")
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), DummyHandler)
+    server.serve_forever()
+
+# Chạy web server ở luồng phụ để không ảnh hưởng bot
+threading.Thread(target=run_web_server, daemon=True).start()
 
 # Lưu trữ trạng thái hệ thống
 active_user_clients = {}
@@ -105,7 +122,6 @@ async def send_welcome(event):
     try:
         admin_status_text = "🔴 Đang Khóa" if is_admin_locked else "🟢 Đang Mở"
         
-        # Dùng phím text thông thường hoàn toàn không lỗi
         keyboard = ReplyKeyboardMarkup([
             [KeyboardButton(text="🔑 Hướng dẫn Login (.login)")],
             [KeyboardButton(text="📜 Xem danh sách lệnh")]
