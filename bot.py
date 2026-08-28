@@ -11,9 +11,10 @@ from telethon.tl.functions.account import UpdateProfileRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
 import telethon.tl.functions.users
 
-# --- CẤU HÌNH API & ADMIN ---
+# --- CẤU HÌNH API & BOT ---
 API_ID = 39485214
 API_HASH = "cd3c7822f740b7b7af660de3cb1c9f9d"
+BOT_TOKEN = "8704592597:AAEK_FoX078pKAYtFqSoPGLINMEf1Y2QakQ"  # Token của ông đã được điền sẵn
 ADMIN_ID = 7907990385  # ID chủ nhân cố định của ông
 
 # Lưu trữ trạng thái hệ thống
@@ -21,8 +22,8 @@ active_user_clients = {}
 active_tasks = {}
 autoclear_status = {}
 group_autodelete_status = {}
-admin_list = {ADMIN_ID}  # Danh sách các admin (chủ nhân + admin phụ)
-is_admin_locked = False  # Trạng thái khóa tính năng admin (Mặc định: Mở)
+admin_list = {ADMIN_ID}
+is_admin_locked = False
 
 # --- KHO NGÔN WAR ĐẦY ĐỦ ---
 WAR_WORDS = [
@@ -30,7 +31,7 @@ WAR_WORDS = [
         "bố con mẹ m còn địt con cụ m thk óc lợn ba vạn ngu lồn ơi cái thứ mồ côi "
         "không nơi nương tựa óc lồn cặc bã loại thk não tật mà quyền lực hạn hẹp ngôn từ khuyết tật. "
         "Thk mặt cặc khiếm khuyết tinh trùng . thằng đĩ cha mày bắn tinh nổ cả dương vật , khiếm khuyết cả 2 hòn dái "
-        "vô cái lỗ lồn con đĩ bà già nhà mày mãi mà chỉ đẻ được thứ súc sinh phế vật óc cặc đú đởn như mày hả cái thứ phế vật trần gian , "
+        "vô cái lỗ lồn con đĩ bà già nhà mày mãi mà chỉ đẻ được thứ súc sinh phế vật óc cặc đú đờn như mày hả cái thứ phế vật trần gian , "
         "thk óc lợn bị bố mày chửi cho khuyết tật thị giác luôn ae ạ , thằng óc lợn này cay bố mày quá liệt cả tinh hoàn à "
         "cái thứ đĩ điếm sĩ đời đầu thai 9 kiếp vẫn chưa hết sĩ , con đĩ cha m thk cặp kè với mấy con lồn già u80 để nuôi nấng m hả thk ngu @Ducducdz"
     ),
@@ -72,7 +73,7 @@ WAR_WORDS = [
     ),
     (
         "thằng lồn ngu hút buồi sặc tinh bất tỉnh nhân sự bị tao ỉa cứt chọi vô xác m trong xe tang lạnh lẽo của con đĩ mẹ mày "
-        "thì tao triệu hồi jack 97 quẩy tung nóc quan tài m ra t đái vô xương cốt của đĩ má m cho m ôm hận t 9 kiếp còn lại "
+        "th thì tao triệu hồi jack 97 quẩy tung nóc quan tài m ra t đái vô xương cốt của đĩ má m cho m ôm hận t 9 kiếp còn lại "
         "nhưng đéo làm được gì, =))) thằng lồn bú trinh bf già u80 để tiếp tục được sống trong vô vọng =)), "
         "ước mơ trở thành dân war của m bị t đá bay đi ngay khi m làm trò xiếc khỉ trước mặt tao mà cái thằng đầu buồi ăn cứt uống đái bú tục lói phét =))"
     )
@@ -449,7 +450,7 @@ async def handle_group_autodelete(event):
 
 async def main():
     print(f"🔥 Bot Hot War 2026 đang chạy! ID Admin cố định: {ADMIN_ID}")
-    await bot.start()
+    await bot.start(bot_token=BOT_TOKEN)
     await bot.run_until_disconnected()
 
 if __name__ == '__main__':
