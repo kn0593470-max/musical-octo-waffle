@@ -7,9 +7,6 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
-from telethon.tl.functions.account import UpdateProfileRequest
-from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
-import telethon.tl.functions.users
 
 # --- CẤU HÌNH API & BOT ---
 API_ID = 39485214
@@ -34,8 +31,6 @@ threading.Thread(target=run_web_server, daemon=True).start()
 # TRẠNG THÁI HỆ THỐNG
 active_user_clients = {}
 active_tasks = {}
-autoclear_status = {}
-group_autodelete_status = {}
 user_states = {} 
 
 WAR_WORDS = [
@@ -85,7 +80,7 @@ WAR_WORDS = [
     ),
     (
         "thằng lồn ngu hút buồi sặc tinh bất tỉnh nhân sự bị tao ỉa cứt chọi vô xác m trong xe tang lạnh lẽo của con đĩ mẹ mày "
-        "th thì tao triệu hồi jack 97 quẩy tung nóc quan tài m ra t đái vô xương cốt của đĩ má m cho m ôm hận t 9 kiếp còn lại "
+        "thì tao triệu hồi jack 97 quẩy tung nóc quan tài m ra t đái vô xương cốt của đĩ má m cho m ôm hận t 9 kiếp còn lại "
         "nhưng đéo làm được gì, =))) thằng lồn bú trinh bf già u80 để tiếp tục được sống trong vô vọng =)), "
         "ước mơ trở thành dân war của m bị t đá bay đi ngay khi m làm trò xiếc khỉ trước mặt tao mà cái thằng đầu buồi ăn cứt uống đái bú tục lói phét =))"
     )
@@ -110,7 +105,7 @@ async def get_authorized_client(event):
 @bot.on(events.NewMessage(pattern=r'^/login$'))
 async def login_start(event):
     user_id = event.sender_id
-    user_states[user_id] = 'WAITING_PHONE'
+    user_states[user_id] = {'step': 'WAITING_PHONE'}
     await event.respond("👉 **Vui lòng nhập số điện thoại của bạn:**\n*(Ví dụ: +84912345678)*")
     raise events.StopPropagation
 
@@ -121,12 +116,12 @@ async def handle_login_steps(event):
         return
 
     text = event.message.text.strip()
-    state = user_states[user_id]
+    current_state = user_states[user_id]['step']
 
-    if state == 'WAITING_PHONE':
+    if current_state == 'WAITING_PHONE':
         if not text.startswith('+') and not text.isdigit():
             await event.respond("❌ Số điện thoại không hợp lệ. Vui lòng nhập lại đúng định dạng (Ví dụ: +84...):")
-            return
+            raise events.StopPropagation
             
         phone = text if text.startswith('+') else f"+{text}"
         await event.respond(f"⏳ Đang gửi mã OTP tới **{phone}**...")
@@ -136,13 +131,13 @@ async def handle_login_steps(event):
             await user_client.connect()
             sent_code = await user_client.send_code_request(phone)
             
-            active_user_clients[user_id] = {
-                "client": user_client,
-                "phone": phone,
-                "phone_code_hash": sent_code.phone_code_hash
+            user_states[user_id] = {
+                'step': 'WAITING_CODE',
+                'client': user_client,
+                'phone': phone,
+                'phone_code_hash': sent_code.phone_code_hash
             }
             
-            user_states[user_id] = 'WAITING_CODE'
             await event.respond("✅ Đã gửi mã OTP thành công!\n📩 **Vui lòng nhập mã OTP nhận được:**")
             
         except Exception as e:
@@ -151,17 +146,21 @@ async def handle_login_steps(event):
             
         raise events.StopPropagation
 
-    elif state == 'WAITING_CODE':
+    elif current_state == 'WAITING_CODE':
         code = text
-        user_data = active_user_clients[user_id]
+        user_data = user_states[user_id]
         user_client = user_data["client"]
 
         try:
             await user_client.sign_in(phone=user_data["phone"], code=code, phone_code_hash=user_data["phone_code_hash"])
+            
+            active_user_clients[user_id] = {"client": user_client}
+            
             await event.respond("🎉 **ĐĂNG NHẬP THÀNH CÔNG!**\nToàn bộ tính năng chiến đấu đã được mở khóa. Gõ `/start` để xem danh sách lệnh.")
             del user_states[user_id]
+            
         except SessionPasswordNeededError:
-            user_states[user_id] = 'WAITING_2FA'
+            user_states[user_id]['step'] = 'WAITING_2FA'
             await event.respond("🔒 Tài khoản có bật bảo mật 2 lớp (2FA).\n🔑 **Vui lòng nhập mật khẩu 2FA:**")
         except PhoneCodeInvalidError:
             await event.respond("❌ Mã OTP không chính xác! Vui lòng nhập lại mã OTP:")
@@ -171,16 +170,18 @@ async def handle_login_steps(event):
             
         raise events.StopPropagation
 
-    elif state == 'WAITING_2FA':
+    elif current_state == 'WAITING_2FA':
         password = text
-        user_client = active_user_clients[user_id]["client"]
+        user_data = user_states[user_id]
+        user_client = user_data["client"]
         
         try:
             await user_client.sign_in(password=password)
+            active_user_clients[user_id] = {"client": user_client}
             await event.respond("🎉 **XÁC THỰC 2FA THÀNH CÔNG!**\nBot đã sẵn sàng chiến đấu!")
             del user_states[user_id]
         except Exception as e:
-            await event.respond("❌ Mật khẩu 2FA sai. Vui lòng nhập lại mật khẩu:")
+            await event.respond(f"❌ Mật khẩu 2FA sai ({e}). Vui lòng nhập lại mật khẩu:")
             
         raise events.StopPropagation
 
@@ -271,3 +272,4 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+ 
