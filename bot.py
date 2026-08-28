@@ -8,11 +8,11 @@ from telethon.tl.functions.account import UpdateProfileRequest
 from telethon.tl.functions.photos import UploadProfilePhotoRequest, DeletePhotosRequest
 import telethon.tl.functions.users
 
-# --- CẤU HÌNH API ĐÃ LẤY CỦA BẠN ---
+# --- CẤU HÌNH API CỦA BẠN ---
 API_ID = 39485214
 API_HASH = "cd3c7822f740b7b7af660de3cb1c9f9d"
 
-# --- KHO NGÔN WAR ĐẦY ĐỦ KÈM TAG ẨN ---
+# --- KHO NGÔN WAR ĐẦY ĐỦ 8 CÂU GỐC ---
 WAR_WORDS = [
     (
         "bố con mẹ m còn địt con cụ m thk óc lợn ba vạn ngu lồn ơi cái thứ mồ côi "
@@ -76,9 +76,18 @@ PROFILE_FILE = "original_profile.json"
 def create_hidden_tag(user_id=1531685790491480419):
     return f"[\u200b](tg://user?id={user_id})"
 
-# 1. Lệnh .war
+# Hàm kiểm tra đăng nhập bắt buộc
+async def check_auth(event):
+    if not await client.is_user_authorized():
+        await event.edit("⚠️ **CẢNH BÁO:** Bạn chưa đăng nhập tài khoản! Vui lòng hoàn tất đăng nhập ở màn hình Console.")
+        return False
+    return True
+
+# --- 1. LỆNH .WAR ---
 @client.on(events.NewMessage(pattern=r'\.war', outgoing=True))
 async def user_war(event):
+    if not await check_auth(event): return
+    
     chat_id = event.chat_id
     active_tasks[chat_id] = True
     
@@ -86,7 +95,7 @@ async def user_war(event):
     if event.is_reply:
         reply_msg = await event.get_reply_message()
         reply_to = reply_msg.id
-        await event.edit("⚔️ [USERBOT] Bắt đầu War tốc độ cao (0.1s/tin) nhắm vào mục tiêu được Reply!")
+        await event.edit("⚔️ [USERBOT] Bắt đầu War tốc độ cao nhắm vào mục tiêu được Reply!")
     else:
         await event.edit("⚔️ [USERBOT] Đã kích hoạt chiến dịch War tốc độ 0.1s toàn khung chat!")
     
@@ -103,13 +112,16 @@ async def user_war(event):
         except Exception:
             await asyncio.sleep(0.2)
 
-# 2. Lệnh .spam
+# --- 2. LỆNH .SPAM ---
 @client.on(events.NewMessage(pattern=r'\.spam (.+)', outgoing=True))
 async def user_spam(event):
+    if not await check_auth(event): return
+
     chat_id = event.chat_id
     spam_text = event.pattern_match.group(1)
     active_tasks[chat_id] = True
-    await event.edit(f"🚀 [USERBOT] Bắt đầu spam: '{spam_text}' (0.1s/tin)")
+    
+    await event.edit(f"🚀 [USERBOT] Bắt đầu spam: '{spam_text}'")
     
     while active_tasks.get(chat_id, False):
         try:
@@ -122,13 +134,16 @@ async def user_spam(event):
         except Exception:
             await asyncio.sleep(0.2)
 
-# 3. Lệnh .sptru
+# --- 3. LỆNH .SPTRU ---
 @client.on(events.NewMessage(pattern=r'\.sptru (.+)', outgoing=True))
 async def user_sptru(event):
+    if not await check_auth(event): return
+
     chat_id = event.chat_id
     spam_text = event.pattern_match.group(1)
     active_tasks[chat_id] = True
-    await event.edit(f"🐢 [USERBOT] Bắt đầu spam tốc độ chậm: '{spam_text}' (1s/tin)")
+    
+    await event.edit(f"🐢 [USERBOT] Bắt đầu spam chậm: '{spam_text}' (1s/tin)")
     
     while active_tasks.get(chat_id, False):
         try:
@@ -138,15 +153,17 @@ async def user_sptru(event):
         except Exception:
             await asyncio.sleep(1.0)
 
-# 4. Lệnh .fake (Tự động lưu gốc vào file và đổi thông tin theo người được reply)
+# --- 4. LỆNH .FAKE ---
 @client.on(events.NewMessage(pattern=r'\.fake', outgoing=True))
 async def user_fake(event):
+    if not await check_auth(event): return
+
     if not event.is_reply:
         await event.edit("❌ Vui lòng reply vào tin nhắn của người bạn muốn fake thông tin!")
         return
     
     try:
-        await event.edit("🔄 Đang tiến hành lưu thông tin gốc và fake profile...")
+        await event.edit("🔄 Đang lưu thông tin gốc và fake profile...")
         reply_msg = await event.get_reply_message()
         target_user = await reply_msg.get_sender()
         
@@ -154,11 +171,9 @@ async def user_fake(event):
             await event.edit("❌ Không thể lấy thông tin người dùng này!")
             return
 
-        # Nếu chưa có file lưu thông tin gốc, tiến hành lưu lại ngay bây giờ
         if not os.path.exists(PROFILE_FILE):
             me = await client.get_me()
             full_me = await client(telethon.tl.functions.users.GetFullUserRequest(id=me.id))
-            
             orig_data = {
                 "first_name": me.first_name or "",
                 "last_name": me.last_name or "",
@@ -167,20 +182,17 @@ async def user_fake(event):
             with open(PROFILE_FILE, "w", encoding="utf-8") as f:
                 json.dump(orig_data, f, ensure_ascii=False, indent=4)
 
-        # Lấy thông tin chi tiết mục tiêu cần fake
         target_full = await client(telethon.tl.functions.users.GetFullUserRequest(id=target_user.id))
         target_about = target_full.full_user.about or ""
         target_firstname = target_user.first_name or "User"
         target_lastname = target_user.last_name or ""
 
-        # 1. Đổi tên và tiểu sử sang nạn nhân
         await client(UpdateProfileRequest(
             first_name=target_firstname,
             last_name=target_lastname,
             about=target_about
         ))
 
-        # 2. Đổi avatar sang nạn nhân
         photo_path = await client.download_profile_photo(target_user, file="temp_avatar.jpg")
         if photo_path:
             uploaded_photo = await client.upload_file(photo_path)
@@ -193,31 +205,78 @@ async def user_fake(event):
     except Exception as e:
         await event.edit(f"❌ Lỗi khi fake: {e}")
 
-# 5. Lệnh .diefake / .die fake (Đọc file lưu gốc để khôi phục hoàn toàn)
+# --- 5. LỆNH .DIEFAKE ---
 @client.on(events.NewMessage(pattern=r'\.(?:die\s*fake|diefake)', outgoing=True))
 async def user_diefake(event):
+    if not await check_auth(event): return
+
     if not os.path.exists(PROFILE_FILE):
-        await event.edit("⚠️ Không tìm thấy file dữ liệu gốc! Có thể bạn chưa dùng lệnh `.fake` lần nào.")
+        await event.edit("⚠️ Không tìm thấy file dữ liệu gốc!")
         return
     
     try:
-        await event.edit("🔄 Đang đọc dữ liệu gốc và khôi phục tài khoản...")
-        
+        await event.edit("🔄 Đang khôi phục lại tài khoản gốc...")
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
             orig_data = json.load(f)
         
-        # 1. Khôi phục tên và tiểu sử gốc
         await client(UpdateProfileRequest(
             first_name=orig_data["first_name"],
             last_name=orig_data["last_name"],
             about=orig_data["about"]
         ))
         
-        # 2. Xóa avatar giả để trả về trạng thái cũ
         photos = await client.get_profile_photos('me')
         if photos:
             await client(DeletePhotosRequest(id=[photos[0]]))
 
-        await event.edit("🛡️ Đã khôi phục lại tài khoản gốc hoàn toàn thành công!")
+        await event.edit("🛡️ Đã khôi phục lại tài khoản gốc thành công!")
     except Exception as e:
-        await event.edit(f>
+        await event.edit(f"❌ Lỗi khi khôi phục: {e}")
+
+# --- 6. LỆNH .AOTUCLEAR ---
+@client.on(events.NewMessage(pattern=r'\.aotuclear', outgoing=True))
+async def user_aotuclear(event):
+    if not await check_auth(event): return
+    chat_id = event.chat_id
+    autoclear_status[chat_id] = True
+    await event.edit("🧹 Đã bật tính năng tự động xóa tin nhắn!")
+
+# --- 7. LỆNH .STOP ---
+@client.on(events.NewMessage(pattern=r'\.stop', outgoing=True))
+async def user_stop(event):
+    if not await check_auth(event): return
+    chat_id = event.chat_id
+    active_tasks[chat_id] = False
+    autoclear_status[chat_id] = False
+    await event.edit("Thu quân cha Đức tha rồi 🤪")
+
+async def main():
+    print("⏳ Đang tiến hành kết nối và xác thực tài khoản...")
+    try:
+        await client.start()
+        
+        if await client.is_user_authorized():
+            me = await client.get_me()
+            print("\n==============================================")
+            print("✅ [LOG ĐÚNG] ĐĂNG NHẬP THÀNH CÔNG VÀO TÀI KHOẢN!")
+            print(f"👤 Tên hiển thị : {me.first_name}")
+            print(f"🆔 User ID      : {me.id}")
+            print(f"📞 Số điện thoại: {me.phone}")
+            print("==============================================\n")
+        else:
+            print("\n==============================================")
+            print("❌ [LOG SAI] Đăng nhập thất bại hoặc chưa hoàn tất xác thực!")
+            print("==============================================\n")
+            return
+    
+    except Exception as e:
+        print("\n==============================================")
+        print(f"❌ [LOG SAI] LỖI ĐĂNG NHẬP: {e}")
+        print("==============================================\n")
+        return
+
+    print("🤖 Userbot đã sẵn sàng hoạt động!")
+    await client.run_until_disconnected()
+
+if __name__ == '__main__':
+    asyncio.run(main())
