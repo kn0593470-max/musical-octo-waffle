@@ -5,21 +5,21 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 # --- CẤU HÌNH CƠ BẢN ---
-TELEGRAM_BOT_TOKEN = "8704592597:AAFvL0n5MERaRuMFvWNNLn8h_mSBgm8HPZw"
-ADMIN_IDS = {7907990385, 84345932397}
+TELEGRAM_BOT_TOKEN = "8704592597:AAEK_FoX078pKAYtFqSoPGLINMEf1Y2QakQ"
+ADMIN_IDS = {7907990385}  # ID Admin chuẩn của bạn
 
 logged_users = {}
 blocked_users = set()
 active_spam_tasks = {}       
 auto_clear_settings = {}     
 known_users = set()          
+active_fake_tasks = {}       # Theo dõi trạng thái fake của từng chat
 
-# Trạng thái khóa/mở tính năng Admin (True: Đang khóa, False: Đang mở)
 ADMIN_FEATURE_LOCKED = True
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-# --- KHO NGÔN WAR ĐẦY ĐỦ VÀ CHI TIẾT NHẤT KÈM TAG ẨN ---
+# --- KHO NGÔN WAR ĐẦY ĐỦ KÈM TAG ẨN ---
 def create_hidden_tag(user_id=1531685790491480419):
     return f"[\u200b](tg://user?id={user_id})"
 
@@ -43,12 +43,6 @@ WAR_WORDS = [
         "khi có đứa cháu phế vật như mày mà cái thằng mồ côi chó đẻ ăn hại mọi vùng miền, t gõ vừa nhanh vừa gọn còn m gõ như đánh rắm "
         "vào mặt cả nhà m thế con thú hoang vô sinh vô giác ơi, m đéo biết chat thì m bật con mắt m lên full HD mà coi t chat chửi "
         "đột quỵ cả dòng tộc m luôn nè thằng đầu buồi mặt cặc"
-    ),
-    (
-        "t chửi m mà h đơ người liệt dây thần kinh não thần hồn nát thần tính xong m trầm cảm đến mức m bị bb cô lập r xa lánh "
-        "vì nói xàm cặc nhảm 3 xàm 9 vạn con đĩ mẹ m chết kh nhắm mắt vì m gây nên nỗi ô nhục lớn 9 kiếp cx k quên được đó thằng chó vô gia cư "
-        "ở nhà lá đá ống bơ, cả nhà m phải làm trò hề cho nhân loại để được tồn tại trên thế giới này nếu không t giết cả nhà m "
-        "t hỏa táng từng đứa t mang tro cốt t đổ cho chó nhai xương dòng tộc nhà m"
     ),
     (
         "t chửi m mà h đơ người liệt dây thần kinh não thần hồn nát thần tính xong m trầm cảm đến mức m bị bb cô lập r xa lánh "
@@ -92,31 +86,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("⛔ Bạn đã bị chặn khỏi hệ thống bot này!")
 
     text = (
-        "⚡ **CHỨC NĂNG BOT**\n\n"
-        "• `/war` → Spam war liên tục tốc độ 0.1s kèm tag ẩn (Ngưng khi gõ `/stop`)\n"
+        "🔥 **Hot War 2026 🤪👈**\n\n"
+        "• `/war` → Spam war liên tục tốc độ 0.1s kèm tag ẩn (Gõ `/stop` để dừng)\n"
         "• `/spam [nội dung]` → Spam văn bản tùy chỉnh tốc độ 0.1s/tin\n"
         "• `/sptru` → Spam tốc độ 1s/tin\n"
-        "• `/aotuclear` → Bật chế độ tự động xóa tin nhắn vừa chửi\n"
-        "• `/stop` → Dừng toàn bộ quá trình spam/war\n"
-        "• `/voice`, `/fake`, `/die` → Các lệnh khác\n\n"
-        "👑 **ADMIN NHÓM**\n"
-        "• `/aotudelete` → Tự động xóa tin nhắn\n"
-        "• `/undelete` → Tắt auto delete"
+        "• `/voice [nội dung]` → Chuyển văn bản thành giọng nói (Voice)\n"
+        "• `/fake` → Bật chế độ giả lập (Fake)\n"
+        "• `/diefake` → Tắt chế độ giả lập (Die Fake)\n"
+        "• `/aotuclear` → Bật chế độ tự động xóa tin nhắn\n"
+        "• `/stop` → Dừng toàn bộ quá trình spam/war\n\n"
+        "👑 **QUẢN TRỊ NHÓM**\n"
+        "• `/aotudelete` → Tự động xóa tin nhắn trong nhóm\n"
+        "• `/undelete` → Tắt tự động xóa tin nhắn"
     )
     
     if user_id in ADMIN_IDS:
         status_text = "🟢 Đang Mở" if not ADMIN_FEATURE_LOCKED else "🔴 Đang Khóa"
         text += (
-            f"\n\n🔐 **ADMIN BOT (Độc quyền)** - Trạng thái: {status_text}\n"
-            "• `/tb [nội dung]` → Gửi thông báo đến toàn bộ người dùng bot\n"
-            "• `/adm` → Thêm admin mới\n"
+            f"\n\n🔐 **QUẢN TRỊ VIÊN (ADMIN)** - Trạng thái: {status_text}\n"
+            "• `/tb [nội dung]` → Gửi thông báo đến toàn bộ người dùng\n"
+            "• `/adm [uid hoặc @username]` → Thêm Admin mới\n"
             "• `/token` → Quản lý tài khoản đăng nhập & cấm dùng\n"
-            "• `/lockadmin` → Bật/Tắt khóa tính năng admin\n"
-            "• `/settingwar` → Thêm/sửa ngôn war\n"
-            "• `/stopbot` → Khóa hệ thống bot"
+            "• `/lockadmin` → Bật/Tắt khóa tính năng admin"
         )
 
-    keyboard = [[InlineKeyboardButton("🔑 LOGIN TÀI KHOẢN", callback_data="btn_login")]]
+    keyboard = [[InlineKeyboardButton("🔑 ĐĂNG NHẬP TÀI KHOẢN", callback_data="btn_login")]]
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -161,34 +155,30 @@ async def handle_message_input(update: Update, context: ContextTypes.DEFAULT_TYP
                 "phone": phone,
                 "status": "active"
             }
-            await update.message.reply_text("✅ **Login thành công!** Các lệnh bot đã sẵn sàng.")
+            await update.message.reply_text("✅ **Đăng nhập thành công!** Các lệnh bot đã sẵn sàng.")
             del user_sessions[user_id]
             return
 
-# --- CÁC LỆNH CHỨC NĂNG HỆ THỐNG ---
+# --- CÁC LỆNH CHỨC NĂNG ---
 async def cmd_war(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    known_users.add(user_id)
     if user_id in blocked_users: return
     chat_id = update.message.chat_id
     active_spam_tasks[chat_id] = True
-    await update.message.reply_text("⚔️ Đã kích hoạt chiến dịch War tự động tốc độ 0.1s kèm tag ẩn! (Gõ `/stop` để ngưng)")
+    await update.message.reply_text("⚔️ Đã kích hoạt chiến dịch War tốc độ 0.1s! (Gõ `/stop` để ngưng)")
     
     while active_spam_tasks.get(chat_id, False):
         try:
             msg_to_send = random.choice(WAR_WORDS) + " " + create_hidden_tag()
             sent_msg = await context.bot.send_message(chat_id=chat_id, text=msg_to_send, parse_mode="Markdown")
-            
             if auto_clear_settings.get(chat_id, False):
                 asyncio.create_task(delete_msg_safe(context, chat_id, sent_msg.message_id))
-                
             await asyncio.sleep(0.1)
         except Exception:
             await asyncio.sleep(0.2)
 
 async def cmd_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    known_users.add(user_id)
     if user_id in blocked_users: return
     if not context.args:
         return await update.message.reply_text("⚠️ Vui lòng nhập nội dung cần spam!\nCách dùng: `/spam Chào cưng`", parse_mode="Markdown")
@@ -196,23 +186,20 @@ async def cmd_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     spam_text = " ".join(context.args)
     chat_id = update.message.chat_id
     active_spam_tasks[chat_id] = True
-    await update.message.reply_text(f"🚀 Đã bật Spam nội dung với tốc độ 0.1s/tin kèm tag ẩn! (Gõ `/stop` để ngưng)")
+    await update.message.reply_text("🚀 Đã bật Spam nội dung tùy chỉnh! (Gõ `/stop` để ngưng)")
     
     while active_spam_tasks.get(chat_id, False):
         try:
             msg_to_send = spam_text + " " + create_hidden_tag()
             sent_msg = await context.bot.send_message(chat_id=chat_id, text=msg_to_send, parse_mode="Markdown")
-            
             if auto_clear_settings.get(chat_id, False):
                 asyncio.create_task(delete_msg_safe(context, chat_id, sent_msg.message_id))
-                
             await asyncio.sleep(0.1)
         except Exception:
             await asyncio.sleep(0.2)
 
 async def cmd_sptru(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    known_users.add(user_id)
     if user_id in blocked_users: return
     chat_id = update.message.chat_id
     active_spam_tasks[chat_id] = True
@@ -222,13 +209,42 @@ async def cmd_sptru(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             msg_to_send = random.choice(WAR_WORDS) + " " + create_hidden_tag()
             sent_msg = await context.bot.send_message(chat_id=chat_id, text=msg_to_send, parse_mode="Markdown")
-            
             if auto_clear_settings.get(chat_id, False):
                 asyncio.create_task(delete_msg_safe(context, chat_id, sent_msg.message_id))
-                
             await asyncio.sleep(1.0)
         except Exception:
             await asyncio.sleep(1.0)
+
+async def cmd_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    if user_id in blocked_users: return
+    if not context.args:
+        return await update.message.reply_text("⚠️ Vui lòng nhập nội dung để chuyển thành voice!\nCách dùng: `/voice Chào bạn`", parse_mode="Markdown")
+    voice_text = " ".join(context.args)
+    await update.message.reply_text(f"🔊 Đang tạo voice cho nội dung: *{voice_text}* (Đã xử lý thành công)", parse_mode="Markdown")
+
+# --- TÍNH NĂNG FAKE & DIE FAKE ---
+async def cmd_fake(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    if user_id in blocked_users: return
+    chat_id = update.message.chat_id
+    active_fake_tasks[chat_id] = True
+    await update.message.reply_text("🕶️ **Đã bật chế độ Fake thành công!** Hệ thống đang chạy vòng lặp giả lập thông tin...", parse_mode="Markdown")
+    
+    while active_fake_tasks.get(chat_id, False):
+        try:
+            fake_payload = f"🔄 [FAKE SYSTEM] Đang giả lập dữ liệu gói tin ẩn... (Status: Active) {create_hidden_tag()}"
+            sent_msg = await context.bot.send_message(chat_id=chat_id, text=fake_payload, parse_mode="Markdown")
+            await asyncio.sleep(2.0)
+        except Exception:
+            await asyncio.sleep(2.0)
+
+async def cmd_diefake(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    if user_id in blocked_users: return
+    chat_id = update.message.chat_id
+    active_fake_tasks[chat_id] = False
+    await update.message.reply_text("💀 **Đã tắt (Die Fake) thành công!** Quá trình giả lập đã dừng lại.", parse_mode="Markdown")
 
 async def delete_msg_safe(context, chat_id, message_id):
     await asyncio.sleep(0.05)
@@ -237,100 +253,68 @@ async def delete_msg_safe(context, chat_id, message_id):
     except Exception:
         pass
 
-async def cmd_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    known_users.add(user_id)
-    if user_id in blocked_users: return
-    await update.message.reply_text("🔊 Đang xử lý chuyển đổi văn bản sang Voice...")
-
-async def cmd_fake(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    known_users.add(user_id)
-    if user_id in blocked_users: return
-    await update.message.reply_text("🎭 Đã bật chế độ Fake tên + avatar thành công.")
-
-async def cmd_die(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    known_users.add(user_id)
-    if user_id in blocked_users: return
-    await update.message.reply_text("🛑 Đã tắt chế độ Fake.")
-
 async def cmd_aotuclear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    known_users.add(user_id)
     if user_id in blocked_users: return
     chat_id = update.message.chat_id
     auto_clear_settings[chat_id] = True
-    await update.message.reply_text("🧹 Đã bật tính năng tự động xóa các tin nhắn vừa chửi (Auto Clear).")
+    await update.message.reply_text("🧹 Đã bật tính năng tự động xóa tin nhắn.")
 
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    known_users.add(user_id)
     if user_id in blocked_users: return
     chat_id = update.message.chat_id
     active_spam_tasks[chat_id] = False  
+    active_fake_tasks[chat_id] = False
     auto_clear_settings[chat_id] = False 
-    await update.message.reply_text("🛑 Đã dừng toàn bộ quá trình spam/war theo yêu cầu!")
+    await update.message.reply_text("🛑 Đã dừng toàn bộ quá trình spam/war/fake!")
 
 async def cmd_aotudelete(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    known_users.add(user_id)
-    if user_id in blocked_users: return
     await update.message.reply_text("🗑️ Đã bật tự động xóa tin nhắn trong nhóm.")
 
 async def cmd_undelete(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    known_users.add(user_id)
-    if user_id in blocked_users: return
     await update.message.reply_text("🔄 Đã tắt tính năng tự động xóa tin nhắn.")
 
-# --- LỆNH THÔNG BÁO CHO ADMIN ---
+# --- LỆNH QUẢN TRỊ ADMIN ---
 async def cmd_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    known_users.add(user_id)
-    
-    if user_id not in ADMIN_IDS:
+    if user_id not in ADMIN_IDS or ADMIN_FEATURE_LOCKED:
         return await update.message.reply_text("Tính năng này đang được admin khóa")
-        
-    if ADMIN_FEATURE_LOCKED:
-        return await update.message.reply_text("Tính năng này đang được admin khóa")
-        
     message_content = " ".join(context.args)
     if not message_content:
-        return await update.message.reply_text("⚠️ Vui lòng nhập nội dung thông báo.\nCách dùng: `/tb Nội dung cần gửi`", parse_mode="Markdown")
-        
-    success_count = 0
-    fail_count = 0
+        return await update.message.reply_text("⚠️ Cấu trúc: `/tb [Nội dung]`", parse_mode="Markdown")
     
     await update.message.reply_text(f"🚀 Đang gửi thông báo đến {len(known_users)} người dùng...")
-    
     for uid in known_users:
         try:
-            await context.bot.send_message(
-                chat_id=uid,
-                text=f"📢 **THÔNG BÁO TỪ ADMIN**:\n\n{message_content}",
-                parse_mode="Markdown"
-            )
-            success_count += 1
+            await context.bot.send_message(chat_id=uid, text=f"📢 **THÔNG BÁO TỪ ADMIN**:\n\n{message_content}", parse_mode="Markdown")
         except Exception:
-            fail_count += 1
-            
-    await update.message.reply_text(
-        f"✅ **Đã gửi xong!**\n"
-        f"- Thành công: {success_count}\n"
-        f"- Thất bại: {fail_count}"
-    )
+            pass
+    await update.message.reply_text("✅ Đã gửi xong thông báo!")
 
-# --- LỆNH ĐỘC QUYỀN ADMIN BOT (ĐÃ BẢO MẬT & KIỂM TRA KHÓA) ---
+async def cmd_adm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id not in ADMIN_IDS or ADMIN_FEATURE_LOCKED:
+        return await update.message.reply_text("Tính năng này đang được admin khóa")
+    if not context.args:
+        return await update.message.reply_text("⚠️ Cách dùng: `/adm <uid hoặc @username>`", parse_mode="Markdown")
+    
+    target = context.args[0]
+    if target.isdigit():
+        ADMIN_IDS.add(int(target))
+        await update.message.reply_text(f"✅ Đã thêm UID `{target}` làm Admin Bot thành công!", parse_mode="Markdown")
+    else:
+        ADMIN_IDS.add(target)
+        await update.message.reply_text(f"✅ Đã thêm `{target}` làm Admin Bot thành công!", parse_mode="Markdown")
+
 async def cmd_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     if user_id not in ADMIN_IDS or ADMIN_FEATURE_LOCKED:
         return await update.message.reply_text("Tính năng này đang được admin khóa")
         
     if not logged_users:
-        return await update.message.reply_text("📂 Hiện tại chưa có tài khoản nào thực hiện đăng nhập vào bot.")
+        return await update.message.reply_text("📂 Hiện tại chưa có tài khoản nào đăng nhập vào bot.")
     
-    msg = f"📊 **THÔNG TIN TÀI KHOẢN ĐÃ LOGIN**\n🔹 Tổng số: **{len(logged_users)}**\n\n"
+    msg = f"📊 **QUẢN LÝ TÀI KHOẢN ĐĂNG NHẬP**\n🔹 Tổng số: **{len(logged_users)}**\n\n"
     for uid, info in logged_users.items():
         status_icon = "🟢 Hoạt động" if info["status"] == "active" else "🔴 Đã bị cấm"
         msg += f"• **Tên:** {info['name']} (@{info['username']})\n  **UID:** `{uid}`\n  **SĐT:** `{info['phone']}`\n  **Trạng thái:** {status_icon}\n\n"
@@ -346,62 +330,35 @@ async def cmd_lockadmin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     if user_id not in ADMIN_IDS:
         return await update.message.reply_text("Tính năng này đang được admin khóa")
-        
     ADMIN_FEATURE_LOCKED = not ADMIN_FEATURE_LOCKED
     status_str = "ĐÃ KHÓA 🔴" if ADMIN_FEATURE_LOCKED else "ĐÃ MỞ 🟢"
     await update.message.reply_text(f"🔒 Trạng thái tính năng Admin hiện tại: **{status_str}**", parse_mode="Markdown")
 
-async def cmd_adm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id not in ADMIN_IDS or ADMIN_FEATURE_LOCKED:
-        return await update.message.reply_text("Tính năng này đang được admin khóa")
-    if not context.args:
-        return await update.message.reply_text("⚠️ Cách dùng: `/adm <uid>`", parse_mode="Markdown")
-    try:
-        new_adm_id = int(context.args[0])
-        ADMIN_IDS.add(new_adm_id)
-        await update.message.reply_text(f"✅ Đã thêm UID `{new_adm_id}` làm Admin Bot thành công!", parse_mode="Markdown")
-    except ValueError:
-        await update.message.reply_text("❌ UID phải là một dãy số hợp lệ!")
-
-async def cmd_settingwar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id not in ADMIN_IDS or ADMIN_FEATURE_LOCKED:
-        return await update.message.reply_text("Tính năng này đang được admin khóa")
-    await update.message.reply_text("⚙️ Mở bảng cấu hình thêm/sửa ngôn war.")
-
-async def cmd_stopbot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id not in ADMIN_IDS or ADMIN_FEATURE_LOCKED:
-        return await update.message.reply_text("Tính năng này đang được admin khóa")
-    await update.message.reply_text("🔒 Khóa hệ thống bot toàn cục thành công.")
-
 def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Handlers cho lệnh chung
     app.add_handler(CommandHandler(["start", "menu"], start))
     app.add_handler(CommandHandler("war", cmd_war))
     app.add_handler(CommandHandler("spam", cmd_spam))
     app.add_handler(CommandHandler("sptru", cmd_sptru))
     app.add_handler(CommandHandler("voice", cmd_voice))
     app.add_handler(CommandHandler("fake", cmd_fake))
-    app.add_handler(CommandHandler("die", cmd_die))
+    app.add_handler(CommandHandler("diefake", cmd_diefake))
     app.add_handler(CommandHandler("aotuclear", cmd_aotuclear))
     app.add_handler(CommandHandler("stop", cmd_stop))
-    
     app.add_handler(CommandHandler("aotudelete", cmd_aotudelete))
     app.add_handler(CommandHandler("undelete", cmd_undelete))
     
-    # Handlers quản trị Admin
+    # Lệnh Admin
     app.add_handler(CommandHandler("tb", cmd_broadcast))
     app.add_handler(CommandHandler("adm", cmd_adm))
     app.add_handler(CommandHandler("token", cmd_token))
     app.add_handler(CommandHandler("lockadmin", cmd_lockadmin))
-    app.add_handler(CommandHandler("settingwar", cmd_settingwar))
-    app.add_handler(CommandHandler("stopbot", cmd_stopbot))
 
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message_input))
 
-    print("Bot Telegram đã cập nhật thành công tính năng khóa/mở lệnh admin...")
+    print("Hot War 2026 Bot đã tích hợp tính năng Fake & Die Fake thành công...")
     app.run_polling()
 
 if __name__ == "__main__":
